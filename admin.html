@@ -124,10 +124,7 @@
             <h3 class="mb-3 text-primary"><i class="fa-solid fa-user-graduate"></i> Login </h3>
             <form id="formLoginAdmin" onsubmit="doLogin(event); return false;">
                 <div class="mb-3">
-                    <input type="text" id="admUser" class="form-control" placeholder="Username" required>
-                </div>
-                <div class="mb-3">
-                    <input type="password" id="admPass" class="form-control" placeholder="Password" required>
+                    <input type="password" id="admPass" class="form-control" placeholder="Masukkan Password Admin" required>
                 </div>
                 <button type="submit" class="btn btn-primary w-100">MASUK</button>
             </form>
@@ -376,13 +373,18 @@ async function fetchAPI(action, payload = {}) {
 
 function doLogin(e) {
     if(e) e.preventDefault();
-    const u = document.getElementById('admUser').value.trim();
     const p = document.getElementById('admPass').value.trim();
-    if(u === 'dwiaji' && p === 'dwiaji') {
+    
+    // Menggunakan trik enkripsi Base64 agar teks 'dwiaji' tidak tertulis di Inspect Element.
+    // 'ZHdpYWpp' adalah hasil encode Base64 dari kata 'dwiaji'.
+    // Jika ingin ganti pass, jalankan btoa("passwordbaru") di console browser.
+    if(btoa(p) === 'ZHdpYWpp') {
         document.getElementById('login-overlay').style.display = 'none';
         sessionStorage.setItem('cbt_admin', 'true');
         loadPage('dashboard');
-    } else { Swal.fire('Error', 'Username atau Password salah!', 'error'); }
+    } else { 
+        Swal.fire('Error', 'Password salah!', 'error'); 
+    }
 }
 
 function doLogout() {
