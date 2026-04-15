@@ -743,26 +743,19 @@ function startTimer(sec) {
 }
 
 function confirmFinish(isViolation = false) {
-    const reqToken = (examDataRaw && examDataRaw.tokenKirim) ? String(examDataRaw.tokenKirim).trim().toUpperCase() : "";
-    let inputPlace = reqToken ? 'Ketik Token Kirim...' : 'Ketik kata SELESAI...';
-    let msgHtml = isViolation ? '<b style="color:var(--danger); font-size:1.1rem;">Batas pelanggaran telah tercapai.</b><br><br>' : '';
-    if(reqToken) { msgHtml += 'Silakan masukkan <b>Token Kirim Jawaban</b> (Minta pada pengawas) untuk mengakhiri ujian:'; } 
-    else { msgHtml += 'Pastikan semua soal terjawab.<br>Ketik kata <b>SELESAI</b> di bawah ini untuk mengonfirmasi pengiriman:'; }
-    
+    let msgHtml = isViolation ? '<b style="color:var(--danger); font-size:1.1rem;">Batas pelanggaran telah tercapai.</b>' : 'Pastikan semua soal telah terjawab. Apakah Anda yakin ingin mengakhiri ujian?';
+
     Swal.fire({
-        title: isViolation ? 'Ujian Dihentikan!' : 'Kirim Jawaban', html: msgHtml, input: 'text',
-        inputAttributes: { autocapitalize: 'characters', autocomplete: 'off' }, inputPlaceholder: inputPlace,
-        icon: isViolation ? 'warning' : 'question', showCancelButton: !isViolation, allowOutsideClick: !isViolation, allowEscapeKey: !isViolation, confirmButtonText: 'Kirim Sekarang', cancelButtonText: 'Batal', confirmButtonColor: '#10b981',
-        preConfirm: (inputValue) => {
-            let val = (inputValue || '').trim().toUpperCase();
-            if (reqToken) {
-                if (val !== reqToken) { Swal.showValidationMessage('Token Kirim Salah! Hubungi pengawas ruangan.'); return false; }
-            } else {
-                if (val !== 'SELESAI') { Swal.showValidationMessage('Ketik kata SELESAI untuk mengirim jawaban.'); return false; }
-            }
-            return true;
-        }
-    }).then((result) => { if (result.isConfirmed) submitExam(isViolation); });
+        title: isViolation ? 'Ujian Dihentikan!' : 'Kirim Jawaban',
+        html: msgHtml,
+        icon: isViolation ? 'warning' : 'question',
+        showCancelButton: !isViolation,
+        confirmButtonText: 'Ya, Kirim Sekarang',
+        cancelButtonText: 'Batal',
+        confirmButtonColor: '#10b981'
+    }).then((result) => { 
+        if (result.isConfirmed) submitExam(isViolation); 
+    });
 }
 
 function submitExam(forced) {
