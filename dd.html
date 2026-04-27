@@ -210,6 +210,10 @@
                             <div class="col-md-6 mb-2"><label>Token Kirim Jawaban</label><input type="text" id="c_token_kirim" class="form-control" placeholder="Kosongkan jika tidak butuh token submit"></div>
                             
                             <div class="col-12 mb-2">
+                                <div class="col-md-6 mb-2">
+                                    <label>Kode Lanjutan (Otomatis Pindah Sub-tes)</label>
+                                    <input type="text" id="c_lanjut" class="form-control" placeholder="Kosongkan jika ini mapel terakhir">
+                                </div>
                                 <label class="fw-bold">Tata Tertib</label>
                                 <textarea id="c_rules" class="form-control" rows="3"></textarea>
                             </div>
@@ -453,7 +457,6 @@ function modalConfig(mode, dataStr) {
     let m = bootstrap.Modal.getInstance(modalEl);
     if (!m) m = new bootstrap.Modal(modalEl);
 
-    // 1. Set Native DOM Textarea terlebih dahulu sebelum Modal muncul
     if(mode === 'edit' && dataStr) {
         const data = JSON.parse(decodeURIComponent(dataStr));
         document.getElementById('c_kode').value = data[0]; 
@@ -468,59 +471,35 @@ function modalConfig(mode, dataStr) {
         document.getElementById('c_akses').value = data[9]; 
         document.getElementById('c_acak').value = data[10]; 
         document.getElementById('c_hasil').value = data[11]; 
-        
-        // Atur native value untuk Tata Tertib
         document.getElementById('c_rules').value = data[12] || ''; 
-        
         document.getElementById('c_ua').value = data[13] || '';
         document.getElementById('c_token_kirim').value = data[14] || ''; 
+        
+        // Load Kode Lanjutan (Kolom ke-16)
+        document.getElementById('c_lanjut').value = data[15] || ''; 
+        
         document.getElementById('c_kode').readOnly = true;
     } else { 
         document.getElementById('formUjian').reset(); 
         document.getElementById('c_rules').value = ''; 
+        document.getElementById('c_lanjut').value = ''; 
         document.getElementById('c_kode').readOnly = false; 
     }
 
-    // 2. Munculkan Modal
     m.show();
 
-    // 3. Render CKEditor HANYA JIKA MODAL SUDAH TERBUKA PENUH
     modalEl.addEventListener('shown.bs.modal', function initEditorConfig() {
         modalEl.removeEventListener('shown.bs.modal', initEditorConfig);
-
-        // Hancurkan instance lama jika ada
-        if (CKEDITOR.instances.c_rules) {
-            try { CKEDITOR.instances.c_rules.destroy(true); } catch(e) { console.error(e); }
-        }
-
-        const configSimple = {
-            versionCheck: false,
-            height: 150,
-            toolbarGroups: [
-                { name: 'basicstyles', groups: [ 'basicstyles', 'cleanup' ] },
-                { name: 'paragraph', groups: [ 'list', 'indent', 'blocks', 'align' ] },
-                { name: 'insert', groups: ['insert'] },
-                { name: 'colors' }
-            ],
-            removeButtons: 'About,Maximize,Source'
-        };
-
-        // Render Ulang (akan otomatis menarik value dari DOM Textarea)
+        if (CKEDITOR.instances.c_rules) { try { CKEDITOR.instances.c_rules.destroy(true); } catch(e) { console.error(e); } }
+        const configSimple = { versionCheck: false, height: 150, toolbarGroups: [ { name: 'basicstyles', groups: [ 'basicstyles', 'cleanup' ] }, { name: 'paragraph', groups: [ 'list', 'indent', 'blocks', 'align' ] }, { name: 'insert', groups: ['insert'] }, { name: 'colors' } ], removeButtons: 'About,Maximize,Source' };
         CKEDITOR.replace('c_rules', configSimple);
     });
 }
 
 function saveUjian() { 
-    // Ambil data tata tertib dari CKEditor jika sudah ready, atau fallback ke textarea native
     let rulesData = '';
-    if (CKEDITOR.instances.c_rules) {
-        rulesData = CKEDITOR.instances.c_rules.getData();
-    } else {
-        rulesData = document.getElementById('c_rules').value;
-    }
-
-    const mulaiRaw = document.getElementById('c_mulai').value;
-    const selesaiRaw = document.getElementById('c_selesai').value;
+    if (CKEDITOR.instances.c_rules) { rulesData = CKEDITOR.instances.c_rules.getData(); } else { rulesData = document.getElementById('c_rules').value; }
+    const mulaiRaw = document.getElementById('c_mulai').value; const selesaiRaw = document.getElementById('c_selesai').value;
 
     const data = { 
         kode: document.getElementById('c_kode').value, 
@@ -535,9 +514,10 @@ function saveUjian() {
         aksesToken: document.getElementById('c_akses').value, 
         acak: document.getElementById('c_acak').value, 
         tampilHasil: document.getElementById('c_hasil').value, 
-        tataTertib: rulesData, // Disimpan sebagai format HTML dari CKEditor
+        tataTertib: rulesData,
         customUA: document.getElementById('c_ua').value, 
-        tokenKirim: document.getElementById('c_token_kirim').value 
+        tokenKirim: document.getElementById('c_token_kirim').value,
+        kodeLanjutan: document.getElementById('c_lanjut').value // Simpan ke Database
     };
 
     fetchAPI('saveConfig', { data: data }).then(res => { 
