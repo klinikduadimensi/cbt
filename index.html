@@ -80,7 +80,7 @@ body {
 }
 
 /* --- Layout Screens --- */
-#loginScreen, #successScreen { 
+#loginScreen, #successScreen, #transitionScreen { 
     position: fixed; inset: 0; z-index: 999; display: flex; align-items: center; justify-content: center; 
     background: linear-gradient(135deg, var(--bg) 0%, var(--border) 100%); 
 }
@@ -223,12 +223,12 @@ line { stroke: var(--primary); stroke-width: 3.5; stroke-linecap: round; }
 @media(min-width: 769px) { .mobile-header-panel { display: none; } }
     </style>
 </head>
-<body class="font-medium"> <div id="loginScreen">
+<body class="font-medium"> 
+
+    <div id="loginScreen">
         <div class="login-box">
             <div class="login-header">
-                
-                    <img src="https://lh3.googleusercontent.com/d/196-yYlDwDc-tUVDTslzPAlBWTmf4ZbWg" alt="Logo CBT" class="logo-img">
-                
+                <img src="https://lh3.googleusercontent.com/d/196-yYlDwDc-tUVDTslzPAlBWTmf4ZbWg" alt="Logo CBT" class="logo-img">
                 <h2>CBT DUA DIMENSI</h2>
                 <p id="date_time" style="margin:5px 0 0; color:#777;"></p>
             </div>
@@ -330,6 +330,19 @@ line { stroke: var(--primary); stroke-width: 3.5; stroke-linecap: round; }
         </div>
     </div>
 
+    <div id="transitionScreen" style="display:none; position:fixed; inset:0; z-index:999; align-items:center; justify-content:center; background:var(--bg);">
+        <div style="background:var(--card); padding:40px; border-radius:15px; box-shadow:var(--shadow-lg); text-align:center; max-width:400px; width:90%; border:1px solid var(--border);">
+            <div style="font-size:3.5rem; color:var(--primary); margin-bottom:15px;"><i class="fas fa-check-circle"></i></div>
+            <h3 style="margin:0 0 10px; color:var(--text);">Jawaban Tersimpan!</h3>
+            <p style="color:var(--secondary); font-size:0.95rem; margin-bottom:25px;">Data jawaban berhasil direkam. Silakan lanjut ke sub-tes berikutnya.</p>
+            <div style="background:#e7f1ff; border:1px solid #93c5fd; padding:20px; border-radius:10px; margin-bottom:25px;">
+                <div style="font-size:0.85rem; color:#1e3a8a; font-weight:bold; text-transform:uppercase;">Mapel Selanjutnya:</div>
+                <div id="nextExamName" style="font-size:1.2rem; color:var(--primary); font-weight:900; margin-top:8px;">-</div>
+            </div>
+            <button onclick="lanjutSubTes()" class="btn-block" style="background:#10b981;">LANJUT KERJAKAN SEKARANG <i class="fas fa-arrow-right" style="margin-left:5px;"></i></button>
+        </div>
+    </div>
+
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby_6HFCjtCbO0ZqQ5P2yxIlJCQt7wukwWvgq2FYz9AJIWAcxn3-seGc2zwIKvl82uDA/exec';
@@ -422,13 +435,21 @@ function checkSession() {
         try {
             const data = JSON.parse(sess);
             userMeta = data.meta; examDataRaw = data.raw; examData = data.raw.soal;
+            
             if(data.status === 'running') {
                 document.getElementById('loginScreen').style.display = 'none';
                 const now = new Date().getTime();
                 const sisa = Math.floor((data.endTime - now) / 1000);
                 if(sisa > 0) { examDataRaw.sisaDetik = sisa; startExamUI(examDataRaw); }
                 else { startExamUI(examDataRaw); setTimeout(() => submitExam(true), 1000); }
-            } else { showRules(examDataRaw); }
+            } else if (data.status === 'transition') {
+                // Aman jika refresh: Langsung kembalikan ke layar Lanjut Mapel
+                document.getElementById('loginScreen').style.display = 'none';
+                document.getElementById('nextExamName').innerText = userMeta.kodeLanjutan;
+                document.getElementById('transitionScreen').style.display = 'flex';
+            } else { 
+                showRules(examDataRaw); 
+            }
             return true;
         } catch(e) { localStorage.removeItem(SESSION_KEY); return false; }
     }
@@ -461,7 +482,7 @@ function cekTokenOtomatis() {
 function requestTokenMsg() { Swal.fire({ title: 'Info Token', text: 'Minta token pada pengawas.', icon: 'info' }); }
 
 function backToLogin() {
-    document.getElementById('successScreen').style.display = 'none'; document.getElementById('ujianScreen').style.display = 'none'; document.getElementById('rulesScreen').style.display = 'none'; document.getElementById('loginScreen').style.display = 'flex';
+    document.getElementById('successScreen').style.display = 'none'; document.getElementById('transitionScreen').style.display = 'none'; document.getElementById('ujianScreen').style.display = 'none'; document.getElementById('rulesScreen').style.display = 'none'; document.getElementById('loginScreen').style.display = 'flex';
     document.getElementById('inpUser').value = ''; document.getElementById('inpPass').value = ''; document.getElementById('inpToken').value = '';
     answers = {}; currIdx = 0; userMeta = {}; examDataRaw = null; examData = []; isSubmitting = false; tabSwitchCount = 0;
     clearInterval(timerInterval); localStorage.removeItem(SESSION_KEY);
@@ -484,7 +505,8 @@ function doLogin() {
     
     fetchAPI('ambilSoal', { username: username, password: pass, kodeUjian: kode, kelas: kelas, tokenInput: token }).then(res => {
         if(res.status === 'ok') {
-            userMeta = { nim: res.nisnPeserta, nama: res.namaPeserta, kode: res.kodeUjian, sheet: res.sheetSoalName };
+            // MENYIMPAN INFO AKUN SEMENTARA UNTUK TRANSISI BERIKUTNYA
+            userMeta = { nim: res.nisnPeserta, nama: res.namaPeserta, kode: res.kodeUjian, sheet: res.sheetSoalName, kodeLanjutan: res.kodeLanjutan, user: username, pass: pass, kelas: kelas };
             localStorage.setItem(SESSION_KEY, JSON.stringify({ meta: userMeta, raw: res, status: 'rules', endTime: 0 }));
             showRules(res, kelas);
         } else { Swal.fire('Gagal', res.message, 'error'); }
@@ -510,7 +532,8 @@ function beginExam() {
     if(!examDataRaw) return;
     requestFullScreen();
     document.getElementById('rulesScreen').style.display = 'none';
-    userMeta = { nim: examDataRaw.nisnPeserta, nama: examDataRaw.namaPeserta, kode: examDataRaw.kodeUjian, sheet: examDataRaw.sheetSoalName };
+    
+    // Perbarui endTime sesi
     localStorage.setItem(SESSION_KEY, JSON.stringify({ meta: userMeta, raw: examDataRaw, status: 'running', endTime: new Date().getTime() + (examDataRaw.sisaDetik * 1000) }));
     startExamUI(examDataRaw);
 }
@@ -766,15 +789,27 @@ function submitExam(forced) {
     Swal.fire({ title: 'Mengirim...', text: msg, allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
     fetchAPI('simpanJawabanFinal', { nim: userMeta.nim, nama: userMeta.nama, kodeUjian: userMeta.kode, sheetSoalName: userMeta.sheet, jawabanObjek: answers, lamaPengerjaan: timeSpentStr }).then(res => {
-        localStorage.removeItem(`ans_${userMeta.nim}_${userMeta.kode}`); localStorage.removeItem(`tab_switch_count_${userMeta.nim}_${userMeta.kode}`); localStorage.removeItem(SESSION_KEY);
+        localStorage.removeItem(`ans_${userMeta.nim}_${userMeta.kode}`); localStorage.removeItem(`tab_switch_count_${userMeta.nim}_${userMeta.kode}`); 
+        
         if(res.status === 'ok') {
             Swal.close();
-            let htmlNilai = '', pesanAkhir = '';
-            if (res.tampilNilai && res.skor !== null) { 
-                htmlNilai = `<div style="font-size:4rem; font-weight:bold; color:var(--primary); margin:10px 0;">${res.skor}</div>`; pesanAkhir = 'Nilai Anda berhasil direkam.'; 
-            } else { htmlNilai = `<div style="font-size:3rem; margin:20px 0;">🔒</div>`; pesanAkhir = 'Jawaban tersimpan. Nilai disembunyikan.'; }
-            document.getElementById('successScore').innerHTML = htmlNilai; document.getElementById('successMsg').innerText = pesanAkhir;
-            document.getElementById('successScreen').style.display = 'flex'; document.getElementById('ujianScreen').style.display = 'none';
+            
+            // CEK APAKAH ADA SUB-TES SELANJUTNYA
+            if(userMeta.kodeLanjutan && userMeta.kodeLanjutan.trim() !== '') {
+                localStorage.setItem(SESSION_KEY, JSON.stringify({ meta: userMeta, status: 'transition' }));
+                document.getElementById('ujianScreen').style.display = 'none';
+                document.getElementById('nextExamName').innerText = userMeta.kodeLanjutan;
+                document.getElementById('transitionScreen').style.display = 'flex';
+            } else {
+                // HAPUS SESI HANYA JIKA TIDAK ADA MAPEL LANJUTAN
+                localStorage.removeItem(SESSION_KEY);
+                let htmlNilai = '', pesanAkhir = '';
+                if (res.tampilNilai && res.skor !== null) { 
+                    htmlNilai = `<div style="font-size:4rem; font-weight:bold; color:var(--primary); margin:10px 0;">${res.skor}</div>`; pesanAkhir = 'Nilai Anda berhasil direkam.'; 
+                } else { htmlNilai = `<div style="font-size:3rem; margin:20px 0;">🔒</div>`; pesanAkhir = 'Jawaban tersimpan. Nilai disembunyikan.'; }
+                document.getElementById('successScore').innerHTML = htmlNilai; document.getElementById('successMsg').innerText = pesanAkhir;
+                document.getElementById('successScreen').style.display = 'flex'; document.getElementById('ujianScreen').style.display = 'none';
+            }
         } else { isSubmitting = false; Swal.fire('Gagal', res.message, 'error'); }
     });
 }
@@ -794,6 +829,33 @@ function updateTime() {
 
 setInterval(updateTime, 1000);
 updateTime();
+
+// --- FUNGSI BARU TRANSAKSI MAPEL ---
+function lanjutSubTes() {
+    Swal.fire({ title: 'Memuat Sub-tes...', text: 'Tunggu sebentar, tidak perlu login ulang.', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+    
+    // Parameter isSequential = true agar Token Mapel kedua otomatis terbypass
+    fetchAPI('ambilSoal', { username: userMeta.user, password: userMeta.pass, kodeUjian: userMeta.kodeLanjutan, kelas: userMeta.kelas, tokenInput: '', isSequential: true }).then(res => {
+        if(res.status === 'ok') {
+            Swal.close();
+            // Perbarui Meta Data User dengan info mapel baru
+            userMeta.kode = res.kodeUjian;
+            userMeta.sheet = res.sheetSoalName;
+            userMeta.kodeLanjutan = res.kodeLanjutan;
+            
+            localStorage.setItem(SESSION_KEY, JSON.stringify({ meta: userMeta, raw: res, status: 'rules', endTime: 0 }));
+            
+            // Reset status pengerjaan soal
+            answers = {}; currIdx = 0; isSubmitting = false; tabSwitchCount = 0;
+            
+            document.getElementById('transitionScreen').style.display = 'none';
+            showRules(res); // Arahkan ke Tata Tertib Mapel Baru
+        } else {
+            Swal.fire('Error', 'Mapel lanjutan bermasalah: ' + res.message, 'error');
+        }
+    });
+}
+
 </script>
 </body>
 </html>
