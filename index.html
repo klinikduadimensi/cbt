@@ -327,6 +327,8 @@ line { stroke: var(--primary); stroke-width: 3.5; stroke-linecap: round; }
             <div id="successScore"></div>
             <p id="successMsg" style="color:var(--secondary);"></p>
             <button onclick="backToLogin()" style="margin-top:20px; padding:12px 30px; background:var(--primary); color:white; border:none; border-radius:50px; font-weight:bold; cursor:pointer;">Kembali ke Login</button>
+            <button id="btnLihatRekap" onclick="bukaModalRekap()" style="margin-top:10px; padding:12px 30px; background:var(--success); color:white; border:none; border-radius:50px; font-weight:bold; cursor:pointer; display:none;">
+    <i class="fas fa-list-alt"></i> Lihat Hasil Seluruh Mata Pelajaran</button>
         </div>
     </div>
 
@@ -342,6 +344,16 @@ line { stroke: var(--primary); stroke-width: 3.5; stroke-linecap: round; }
             <button onclick="lanjutSubTes()" class="btn-block" style="background:#10b981;">LANJUT KERJAKAN SEKARANG <i class="fas fa-arrow-right" style="margin-left:5px;"></i></button>
         </div>
     </div>
+    <!-- Modal Rekap Nilai Gabungan -->
+<div class="modal-overlay" id="modalRekapNilai">
+    <div class="modal-content" style="max-width:450px;">
+        <span class="close-modal" onclick="tutupModalRekap()">×</span>
+        <h3 style="text-align:center; color:var(--primary); margin-top:0;">Rekap Hasil Ujian</h3>
+        <hr>
+        <div id="isiTabelRekap"></div>
+        <button onclick="tutupModalRekap()" class="btn-block" style="margin-top:15px; background:var(--secondary);">Tutup</button>
+    </div>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
@@ -793,24 +805,48 @@ function submitExam(forced) {
         
         if(res.status === 'ok') {
             Swal.close();
-            
-            // CEK APAKAH ADA SUB-TES SELANJUTNYA
+
+            // A. Simpan skor sub-tes yang baru selesai ke memori browser
+            let rekapNilaiSiswa = JSON.parse(localStorage.getItem('rekap_nilai_temp') || '[]');
+            rekapNilaiSiswa.push({
+                mapel: userMeta.sheet || userMeta.kode,
+                skor: (res.tampilNilai && res.skor !== null) ? res.skor : 'Disembunyikan'
+            });
+            localStorage.setItem('rekap_nilai_temp', JSON.stringify(rekapNilaiSiswa));
+
+            // B. Cek apakah ada sub-tes selanjutnya
             if(userMeta.kodeLanjutan && userMeta.kodeLanjutan.trim() !== '') {
                 localStorage.setItem(SESSION_KEY, JSON.stringify({ meta: userMeta, status: 'transition' }));
                 document.getElementById('ujianScreen').style.display = 'none';
                 document.getElementById('nextExamName').innerText = userMeta.kodeLanjutan;
                 document.getElementById('transitionScreen').style.display = 'flex';
             } else {
-                // HAPUS SESI HANYA JIKA TIDAK ADA MAPEL LANJUTAN
+                // C. Jika sudah mapel terakhir (tidak ada kode lanjutan)
                 localStorage.removeItem(SESSION_KEY);
+                
                 let htmlNilai = '', pesanAkhir = '';
                 if (res.tampilNilai && res.skor !== null) { 
-                    htmlNilai = `<div style="font-size:4rem; font-weight:bold; color:var(--primary); margin:10px 0;">${res.skor}</div>`; pesanAkhir = 'Nilai Anda berhasil direkam.'; 
-                } else { htmlNilai = `<div style="font-size:3rem; margin:20px 0;">🔒</div>`; pesanAkhir = 'Jawaban tersimpan. Nilai disembunyikan.'; }
-                document.getElementById('successScore').innerHTML = htmlNilai; document.getElementById('successMsg').innerText = pesanAkhir;
-                document.getElementById('successScreen').style.display = 'flex'; document.getElementById('ujianScreen').style.display = 'none';
+                    htmlNilai = `<div style="font-size:4rem; font-weight:bold; color:var(--primary); margin:10px 0;">${res.skor}</div>`; 
+                    pesanAkhir = 'Nilai sub-tes terakhir berhasil direkam.'; 
+                } else { 
+                    htmlNilai = `<div style="font-size:3rem; margin:20px 0;">🔒</div>`; 
+                    pesanAkhir = 'Jawaban tersimpan. Nilai disembunyikan.'; 
+                }
+                
+                document.getElementById('successScore').innerHTML = htmlNilai; 
+                document.getElementById('successMsg').innerText = pesanAkhir;
+                
+                // Munculkan tombol "Lihat Hasil Seluruh Sub-tes"
+                document.getElementById('btnLihatRekap').style.display = 'inline-block';
+
+                document.getElementById('successScreen').style.display = 'flex'; 
+                document.getElementById('ujianScreen').style.display = 'none';
             }
-        } else { isSubmitting = false; Swal.fire('Gagal', res.message, 'error'); }
+        } 
+        else { 
+            isSubmitting = false; 
+            Swal.fire('Gagal', res.message, 'error'); 
+        }
     });
 }
 
@@ -855,7 +891,48 @@ function lanjutSubTes() {
         }
     });
 }
+    // Fungsi untuk membuka pop-up dan membuat tabel nilai
+function bukaModalRekap() {
+    let rekapData = JSON.parse(localStorage.getItem('rekap_nilai_temp') || '[]');
+    let htmlTabel = `<table style="width:100%; border-collapse:collapse; margin-top:10px; font-size:0.95rem;">
+        <thead>
+            <tr style="background:var(--primary); color:white;">
+                <th style="padding:10px; border:1px solid var(--border); text-align:left;">Mata Pelajaran</th>
+                <th style="padding:10px; border:1px solid var(--border); text-align:center;">Nilai</th>
+            </tr>
+        </thead>
+        <tbody>`;
+        
+    if(rekapData.length === 0) {
+        htmlTabel += `<tr><td colspan="2" style="text-align:center; padding:15px;">Tidak ada data rekap nilai.</td></tr>`;
+    } else {
+        rekapData.forEach(item => {
+            htmlTabel += `<tr>
+                <td style="padding:10px; border:1px solid var(--border); font-weight:bold; color:var(--text);">${item.mapel}</td>
+                <td style="padding:10px; border:1px solid var(--border); text-align:center; font-weight:bold; color:var(--primary);">${item.skor}</td>
+            </tr>`;
+        });
+    }
+    
+    htmlTabel += `</tbody></table>`;
+    document.getElementById('isiTabelRekap').innerHTML = htmlTabel;
+    document.getElementById('modalRekapNilai').style.display = 'flex';
+}
 
+// Fungsi untuk menutup pop-up
+function tutupModalRekap() {
+    document.getElementById('modalRekapNilai').style.display = 'none';
+}
+// === POIN 3 DILETAKKAN TEPAT DI BANYAK SINI ===
+const oldBackToLogin = backToLogin;
+backToLogin = function() {
+    localStorage.removeItem('rekap_nilai_temp');
+    if(document.getElementById('btnLihatRekap')) {
+        document.getElementById('btnLihatRekap').style.display = 'none';
+    }
+    if (typeof oldBackToLogin === 'function') oldBackToLogin();
+};
+    
 </script>
 </body>
 </html>
